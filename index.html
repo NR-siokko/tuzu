@@ -1,0 +1,647 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>つづり配信便</title>
+<meta name="theme-color" content="#C4443A">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Zen+Maru+Gothic:wght@400;500;700;900&display=swap">
+<style>
+/* Layout: one phone-width column. Sticky header with a striped edge, card feed, fixed bottom tab bar. The schedule tab is a vertical timeline: a wavy red line with dates and times on its left and entries on its right. Theme: warm paper, postal red, amber. */
+:root {
+  color-scheme: light;
+  --paper: #F7F3EE;
+  --card: #FFFCF8;
+  --ink: #2A211E;
+  --muted: #6F625C;
+  --line: #E6DCD0;
+  --accent: #C4443A;
+  --on-accent: #FFFFFF;
+  --amber: #E7A83E;
+  --tint: #F1E7DC;
+  --shadow: rgba(60, 35, 20, 0.12);
+  --font-body: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Yu Gothic", system-ui, sans-serif;
+  --font-mono: "DM Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #1C1715; --card: #272019; --ink: #F3EAE3; --muted: #B3A59C; --line: #3A302B;
+    --accent: #F28B7A; --on-accent: #2A0F0A; --amber: #F0B857; --tint: #33281F; --shadow: rgba(0, 0, 0, 0.45);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #1C1715; --card: #272019; --ink: #F3EAE3; --muted: #B3A59C; --line: #3A302B;
+  --accent: #F28B7A; --on-accent: #2A0F0A; --amber: #F0B857; --tint: #33281F; --shadow: rgba(0, 0, 0, 0.45);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--paper); }
+body {
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 96px;
+}
+body::before {
+  content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px);
+  z-index: 10; background: var(--paper);
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+.wrap { max-width: 480px; margin: 0 auto; }
+
+/* header */
+.head { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--paper); padding-top: 14px; }
+.head-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; color: var(--accent); text-transform: uppercase; }
+h1 { font-size: 26px; line-height: 1.25; margin: 4px 0 2px; font-weight: 900; text-wrap: balance; }
+.sub { color: var(--muted); font-size: 12.5px; margin: 0; }
+.postmark {
+  flex: none; width: 58px; height: 58px; border-radius: 50%;
+  border: 2px solid var(--accent); color: var(--accent);
+  display: grid; place-items: center; text-align: center;
+  font-family: var(--font-mono); font-size: 9px; line-height: 1.25; letter-spacing: 0.06em;
+  transform: rotate(-12deg); position: relative;
+}
+.postmark::after { content: ""; position: absolute; inset: 4px; border: 1px dashed var(--accent); border-radius: 50%; opacity: 0.6; }
+.postmark b { font-size: 14px; display: block; letter-spacing: 0; }
+.stripe {
+  height: 5px; margin-top: 14px; border-radius: 2px;
+  background: repeating-linear-gradient(135deg, var(--accent) 0 10px, transparent 10px 16px, var(--amber) 16px 26px, transparent 26px 32px);
+}
+.sample-note { margin: 12px 0 0; padding: 8px 12px; border-radius: 10px; background: var(--tint); color: var(--muted); font-size: 12px; }
+
+/* controls */
+.tools { display: grid; gap: 10px; margin-top: 14px; }
+.tools:empty { display: none; }
+.search {
+  width: 100%; border: 1px solid var(--line); background: var(--card); color: var(--ink);
+  border-radius: 12px; padding: 10px 14px; font: inherit; min-width: 0;
+}
+.search::placeholder { color: var(--muted); }
+.chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chip { flex: none; border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 6px 14px; font-size: 12.5px; font-weight: 500; }
+.chip[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 700; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; color: var(--muted); font-size: 12px; }
+.add { border-style: dashed; color: var(--accent); }
+
+/* feed */
+main { padding-top: 16px; display: grid; gap: 18px; }
+.day-label { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; color: var(--muted); margin: 6px 0 -6px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px 12px; }
+.grid.single { grid-template-columns: 1fr; }
+.card { display: grid; gap: 8px; align-content: start; min-width: 0; position: relative; }
+.thumb {
+  position: relative; aspect-ratio: 16 / 9; max-width: 100%; border-radius: 12px; overflow: hidden;
+  border: 0; padding: 0; width: 100%; display: block; text-align: left;
+  background: linear-gradient(135deg, hsl(var(--h) 70% 62%), hsl(calc(var(--h) + 40) 65% 42%));
+  box-shadow: 0 2px 8px var(--shadow);
+}
+.thumb svg { position: absolute; right: -6px; bottom: -8px; width: 56%; opacity: 0.28; }
+.thumb .tag { position: absolute; left: 8px; top: 8px; background: rgba(255,255,255,0.92); color: #2A211E; border-radius: 6px; padding: 1px 7px; font-size: 11px; font-weight: 700; }
+.thumb .dur { position: absolute; right: 8px; bottom: 8px; background: rgba(20,12,10,0.78); color: #fff; border-radius: 6px; padding: 0 6px; font-family: var(--font-mono); font-size: 11px; }
+.thumb.ph { background: var(--card); border: 1.5px dashed var(--line); box-shadow: none; display: grid; place-items: center; font-weight: 700; font-size: 12.5px; text-align: center; color: var(--ink); }
+.live-badge { position: absolute; left: 8px; bottom: 8px; background: var(--accent); color: var(--on-accent); border-radius: 6px; padding: 0 8px; font-family: var(--font-mono); font-size: 11px; font-weight: 500; letter-spacing: 0.08em; }
+.title { font-weight: 700; font-size: 13.5px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin: 0; }
+.meta { display: flex; justify-content: space-between; align-items: center; gap: 6px; color: var(--muted); font-size: 11.5px; }
+.meta span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mark { flex: none; width: 34px; height: 34px; margin: -6px -6px -6px 0; border: 0; background: none; border-radius: 50%; display: grid; place-items: center; color: var(--muted); }
+.mark svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.mark[aria-pressed="true"] { color: var(--accent); }
+.mark[aria-pressed="true"] svg { fill: currentColor; }
+.big-live .title { font-size: 16px; }
+.empty { text-align: center; color: var(--muted); padding: 40px 12px; border: 1px dashed var(--line); border-radius: 14px; }
+.empty b { display: block; color: var(--ink); margin-bottom: 4px; font-size: 15px; }
+
+/* timeline */
+.tl { --tc: 74px; --dc: 28px; position: relative; padding-bottom: 8px; }
+.tl::before {
+  content: ""; position: absolute; top: 0; bottom: 0; width: 4px; border-radius: 2px;
+  left: calc(var(--tc) + var(--dc) / 2 - 2px);
+  background: var(--accent);
+}
+.tr { display: grid; grid-template-columns: var(--tc) var(--dc) minmax(0, 1fr); align-items: start; }
+.tr.day { padding-top: 20px; padding-bottom: 12px; align-items: center; }
+.tr.day:first-child { padding-top: 4px; }
+.tr.entry { padding-bottom: 16px; }
+.dcol { line-height: 1.1; }
+.dmd { font-size: 21px; font-weight: 900; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; display: block; }
+.dw { font-size: 11.5px; color: var(--muted); font-weight: 500; }
+.tcol { text-align: right; padding-right: 4px; font-size: 12.5px; font-weight: 700; padding-top: 1px; line-height: 1.3; }
+.tcol.evt-l { color: var(--accent); font-size: 11px; }
+.nodecol { display: grid; justify-items: center; }
+.dot { width: 14px; height: 14px; border-radius: 50%; background: var(--card); border: 3px solid var(--accent); position: relative; z-index: 1; margin-top: 3px; }
+.dot.day { width: 18px; height: 18px; background: var(--accent); border-color: var(--paper); margin-top: 0; box-shadow: 0 0 0 2px var(--accent); }
+.dot.star { width: 16px; height: 16px; background: var(--amber); border-color: var(--paper); box-shadow: 0 0 0 2px var(--amber); border-radius: 4px; transform: rotate(45deg); }
+.ccol { min-width: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tr.entry .ccol { display: block; }
+.none { color: var(--muted); font-size: 12px; }
+.ecard { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 10px; align-items: start; }
+.ecard .thumb { border-radius: 10px; }
+.ecard .thumb .tag { left: 5px; top: 5px; font-size: 10px; padding: 0 5px; }
+.etitle { margin: 0; font-size: 13px; font-weight: 700; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.ebadges { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; font-size: 11.5px; color: var(--muted); }
+.pill { font-size: 10.5px; line-height: 1.6; padding: 0 8px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--muted); font-weight: 700; }
+.pill.on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.evt { width: 100%; text-align: left; border: 1px solid var(--amber); background: var(--tint); border-radius: 12px; padding: 9px 12px; font-weight: 700; font-size: 13px; display: block; }
+.evt small { display: block; font-weight: 500; color: var(--muted); font-size: 11.5px; }
+
+/* bottom tabs */
+.tabs {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--card); border-top: 1px solid var(--line);
+  padding: 6px max(8px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px));
+}
+.tabs-in { max-width: 480px; margin: 0 auto; display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; }
+.tab { border: 0; background: none; border-radius: 12px; padding: 6px 2px 4px; display: grid; justify-items: center; gap: 2px; font-size: 10.5px; color: var(--muted); position: relative; }
+.tab svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.tab[aria-selected="true"] { background: var(--tint); color: var(--accent); font-weight: 700; }
+.tab .dot-live { position: absolute; top: 5px; right: 24%; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+
+/* sheets */
+.scrim { position: fixed; inset: 0; z-index: 20; background: rgba(20, 10, 8, 0.55); display: flex; align-items: flex-end; justify-content: center; }
+.sheet { width: 100%; max-width: 480px; background: var(--card); color: var(--ink); border-radius: 20px 20px 0 0; padding: 16px 16px calc(18px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 12px; max-height: 92%; overflow-y: auto; }
+.player { aspect-ratio: 16 / 9; border-radius: 12px; display: grid; place-items: center; text-align: center; padding: 12px; background: var(--tint); color: var(--muted); font-size: 12px; border: 1px dashed var(--line); }
+.sheet h2 { margin: 0; font-size: 16px; line-height: 1.45; }
+.sheet .meta { justify-content: flex-start; flex-wrap: wrap; gap: 4px 12px; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.btn { border-radius: 12px; padding: 11px 12px; font-weight: 700; text-align: center; text-decoration: none; border: 1px solid var(--line); background: var(--card); display: block; width: 100%; }
+.btn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.close { justify-self: center; border: 0; background: none; color: var(--muted); padding: 4px 12px; }
+.fl { display: grid; gap: 4px; font-size: 12px; color: var(--muted); font-weight: 700; }
+.fl .search { font-weight: 400; color: var(--ink); }
+.err { margin: 0; color: var(--accent); font-size: 12.5px; font-weight: 700; }
+@media (prefers-reduced-motion: no-preference) {
+  .sheet { animation: up 0.22s ease-out; }
+  @keyframes up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+}
+
+/* app additions */
+.thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.thumb .tag, .thumb .dur, .live-badge { z-index: 1; }
+.statusbar { margin: 12px 0 0; display: flex; gap: 8px; align-items: center; }
+.status { flex: 1; min-width: 0; margin: 0; padding: 8px 12px; border-radius: 10px; background: var(--tint); color: var(--muted); font-size: 12px; }
+.status.err { color: var(--accent); font-weight: 700; }
+.iconbtn { flex: none; width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--line); background: var(--card); display: grid; place-items: center; }
+.iconbtn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.player.real { padding: 0; overflow: hidden; position: relative; border-style: solid; }
+.player iframe { width: 100%; height: 100%; border: 0; display: block; }
+.playbtn { position: absolute; inset: 0; width: 100%; border: 0; background: #000 center / cover no-repeat; display: grid; place-items: center; }
+.playbtn span { width: 56px; height: 56px; border-radius: 50%; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; }
+.help { font-size: 12px; color: var(--muted); margin: 0; }
+details.help summary { cursor: pointer; font-weight: 700; }
+details.help p { margin: 6px 0 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .iconbtn.spin svg { animation: rot 1s linear infinite; }
+  @keyframes rot { to { transform: rotate(360deg); } }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="head">
+    <div class="head-row">
+      <div>
+        <div class="eyebrow">SUZUNA TSUZURI</div>
+        <h1 id="h1">いま配信中</h1>
+        <p class="sub" id="sub"></p>
+      </div>
+      <div class="postmark" aria-hidden="true"><div><b id="pm-day">11.02</b>ASOBI<br>MAIL</div></div>
+    </div>
+    <div class="stripe" aria-hidden="true"></div>
+  </header>
+  <div class="statusbar">
+    <p class="status" id="status" role="status"></p>
+    <button class="iconbtn" id="btn-refresh" aria-label="最新の情報に更新"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg></button>
+    <button class="iconbtn" id="btn-settings" aria-label="設定"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg></button>
+  </div>
+  <div class="tools" id="tools"></div>
+  <main id="feed"></main>
+</div>
+
+<nav class="tabs" aria-label="画面の切り替え"><div class="tabs-in" role="tablist" id="tabs"></div></nav>
+<div id="sheet-root"></div>
+
+<script>
+(function () {
+  var CH_SELF = "鈴鳴つづり";
+  var CH_UNIT = "アソビ★まわり隊!";
+  var URL_SELF = "https://www.youtube.com/@SuzunaTsuzuri";
+  var URL_UNIT = "https://www.youtube.com/@hololive_ASOBIMAWARITAI";
+  var X_SELF = "https://x.com/suzuna_tsuzuri";
+  var X_UNIT = "https://x.com/ASOBIMAWARITAI";
+  var BASE = "https://holodex.net/api/v2";
+  var D = 24 * 3600 * 1000;
+  var now = Date.now();
+
+  function lsGet(k, def) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch (e) { return def; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function jst(ts, opt) { return new Intl.DateTimeFormat("ja-JP", Object.assign({ timeZone: "Asia/Tokyo" }, opt)).format(ts); }
+  function dateKey(ts) { return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(ts); }
+  function at(days, hour, min) { return Date.parse(dateKey(now + days * D) + "T" + ("0" + hour).slice(-2) + ":" + ("0" + (min || 0)).slice(-2) + ":00+09:00"); }
+  function chLabel(ch) { return ch === CH_UNIT ? "公式ch" : "つづりch"; }
+  function fmtShort(t) { return jst(t, { month: "numeric", day: "numeric" }); }
+  function fmtTime(t) { return jst(t, { hour: "2-digit", minute: "2-digit", hour12: false }); }
+  function agoText(t) { var m = Math.max(0, Math.round((now - t) / 60000)); return m < 60 ? "開始から" + m + "分" : "開始から" + Math.floor(m / 60) + "時間" + (m % 60) + "分"; }
+  function untilText(t) { var m = Math.round((t - now) / 60000); if (m < 0) return "開始済み"; if (m < 60) return "あと" + m + "分"; if (m < 1440) return "あと" + Math.floor(m / 60) + "時間"; return "あと" + Math.floor(m / 1440) + "日"; }
+  function timeJa(s) { var p = s.time.split(":"); return Number(p[0]) + "時" + (p[1] !== "00" ? Number(p[1]) + "分" : "") + "〜"; }
+  function fmtDur(sec) { sec = Math.round(sec); var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60; return (h ? h + ":" + ("0" + m).slice(-2) : m) + ":" + ("0" + s).slice(-2); }
+  function hue(id) { var h = 0; for (var i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 360; return h; }
+
+  /* ---------- サンプル（設定前に表示） ---------- */
+  var SAMPLE_DATA = {
+    live: [{ id: "l1", title: "【雑談】今夜のお手紙、まとめて配達します（サンプル）", cat: "雑談", ch: CH_SELF, start: now - 42 * 60000, h: 25 }],
+    upcoming: [],
+    archive: [
+      { id: "a1", title: "【雑談】今週のできごと、手紙にしました（サンプル）", cat: "雑談", ch: CH_SELF, start: at(-1, 21, 0), dur: "1:52:10", h: 20 },
+      { id: "a2", title: "【ゲーム】初見プレイ 第2回（サンプル）", cat: "ゲーム", ch: CH_SELF, start: at(-2, 20, 0), dur: "2:31:48", h: 150 },
+      { id: "a3", title: "【歌枠】はじめての歌枠、緊張してます（サンプル）", cat: "歌枠", ch: CH_SELF, start: at(-3, 21, 0), dur: "2:05:33", h: 330 }
+    ],
+    songs: [
+      { id: "s1", title: "騒げ★ぐるぐるTIME!", cat: "オリジナル", ch: CH_UNIT, start: Date.parse("2026-09-26T00:00:00+09:00"), dur: "MV", h: 10 },
+      { id: "s2", title: "【歌ってみた】サンプル曲A / 鈴鳴つづり（サンプル）", cat: "歌ってみた", ch: CH_SELF, start: at(-5, 18, 0), dur: "3:41", h: 330 }
+    ]
+  };
+  var SAMPLE_SCHED = [
+    { id: "p1", kind: "stream", date: dateKey(now), time: "22:00", ch: CH_SELF, title: "【雑談】夜ふかしのおたよりタイム（サンプル）", confirmed: true },
+    { id: "p4", kind: "stream", date: dateKey(now + 4 * D), time: "21:00", ch: CH_SELF, title: "【歌枠】リクエストお待ちしてます（サンプル）", confirmed: false },
+    { id: "p7", kind: "event", date: dateKey(now + 6 * D), title: "お祝いの日の例（サンプル）", note: "デビュー記念日や誕生日などを入れる場所です" }
+  ];
+
+  /* ---------- 状態 ---------- */
+  var settings = lsGet("tsuzuri-settings", {});
+  var userSched = lsGet("tsuzuri-sched", []);
+  var saved = lsGet("tsuzuri-saved2", {});
+  var mode = settings.key && (settings.selfId || settings.unitId) ? "live" : "sample";
+  var DATA = mode === "sample" ? SAMPLE_DATA : { live: [], upcoming: [], archive: [], songs: [] };
+  var state = { tab: "live", q: "", chip: "すべて", loading: false, msg: "", err: false };
+
+  /* ---------- Holodex ---------- */
+  var MUSIC_TOPICS = { Music_Cover: "歌ってみた", Original_Song: "オリジナル" };
+  function classify(v) {
+    var topic = v.topic_id || "", title = v.title || "";
+    var song = !!MUSIC_TOPICS[topic] || /歌ってみた|【MV】|\bMV\b|Music Video|オリジナル(曲|楽曲)|cover/i.test(title);
+    var cat;
+    if (song) cat = MUSIC_TOPICS[topic] || (/歌ってみた|cover/i.test(title) ? "歌ってみた" : "楽曲");
+    else {
+      var m = /^[【\[]([^】\]]{1,10})[】\]]/.exec(title);
+      cat = m ? m[1] : topic === "singing" ? "歌枠" : "配信";
+    }
+    return { song: song, cat: cat };
+  }
+  function pickStart(v) {
+    var s = v.status === "past" ? (v.start_actual || v.available_at || v.published_at)
+      : v.status === "live" ? (v.start_actual || v.start_scheduled || v.available_at)
+      : (v.start_scheduled || v.available_at);
+    var t = Date.parse(s);
+    return isNaN(t) ? Date.now() : t;
+  }
+  function mapVideo(v, ch) {
+    var c = classify(v);
+    return { id: v.id, vid: v.id, title: v.title || "(タイトルなし)", cat: c.cat, song: c.song, ch: ch, start: pickStart(v), dur: v.duration ? fmtDur(v.duration) : "", status: v.status, h: hue(v.id) };
+  }
+  function hx(path, params) {
+    var qs = Object.keys(params).map(function (k) { return k + "=" + encodeURIComponent(params[k]); }).join("&");
+    return fetch(BASE + path + "?" + qs, { headers: { "X-APIKEY": settings.key } }).then(function (res) {
+      if (!res.ok) { var e = new Error("HTTP " + res.status); e.status = res.status; throw e; }
+      return res.json();
+    }).then(function (j) { return Array.isArray(j) ? j : (j && j.items) || []; });
+  }
+  function errText(e) {
+    if (e && (e.status === 401 || e.status === 403)) return "APIキーが正しくないようです（" + e.status + "）";
+    if (e && e.status === 404) return "チャンネルが見つかりません（404）";
+    if (e && e.status === 429) return "短時間に読み込みすぎました。少し待ってください";
+    if (e && e.name === "TypeError") return "通信できませんでした。ネット接続を確認してください";
+    return (e && e.message) || "不明なエラー";
+  }
+  function loadChannel(id, ch) {
+    return Promise.allSettled([
+      hx("/videos", { channel_id: id, status: "live,upcoming", type: "stream", include: "live_info", order: "asc", limit: 50, max_upcoming_hours: 24 * 21 }),
+      hx("/videos", { channel_id: id, status: "past", type: "stream", include: "live_info", order: "desc", limit: 50 })
+    ]).then(function (r) {
+      var out = { ch: ch, live: [], upcoming: [], past: [], errors: [] };
+      if (r[0].status === "fulfilled") r[0].value.forEach(function (v) { (v.status === "live" ? out.live : out.upcoming).push(mapVideo(v, ch)); });
+      else out.errors.push(errText(r[0].reason));
+      if (r[1].status === "fulfilled") r[1].value.forEach(function (v) { out.past.push(mapVideo(v, ch)); });
+      else out.errors.push(errText(r[1].reason));
+      return out;
+    });
+  }
+  function refresh() {
+    if (mode !== "live" || state.loading) return Promise.resolve();
+    now = Date.now(); state.loading = true; state.msg = "読み込み中…"; state.err = false; renderStatus();
+    var jobs = [];
+    if (settings.selfId) jobs.push(loadChannel(settings.selfId, CH_SELF));
+    if (settings.unitId) jobs.push(loadChannel(settings.unitId, CH_UNIT));
+    return Promise.all(jobs).then(function (res) {
+      var d = { live: [], upcoming: [], archive: [], songs: [] }, errs = [], counts = [];
+      res.forEach(function (c) {
+        d.live = d.live.concat(c.live); d.upcoming = d.upcoming.concat(c.upcoming);
+        c.past.forEach(function (v) { (v.song ? d.songs : d.archive).push(v); });
+        c.errors.forEach(function (m) { if (errs.indexOf(m) < 0) errs.push(m); });
+        counts.push(chLabel(c.ch) + " 配信中" + c.live.length + "・予定" + c.upcoming.length + "・過去" + c.past.length);
+      });
+      var total = d.live.length + d.upcoming.length + d.archive.length + d.songs.length;
+      d.live.sort(function (a, b) { return b.start - a.start; });
+      d.upcoming.sort(function (a, b) { return a.start - b.start; });
+      d.archive.sort(function (a, b) { return b.start - a.start; });
+      d.songs.sort(function (a, b) { return b.start - a.start; });
+      if (errs.length && !total) { state.msg = "読み込めませんでした：" + errs[0]; state.err = true; }
+      else {
+        DATA = d; lsSet("tsuzuri-cache", { t: Date.now(), data: d });
+        state.msg = "最終更新 " + fmtTime(Date.now()) + "｜" + counts.join("／") + (errs.length ? "｜一部失敗：" + errs[0] : "");
+        state.err = false;
+      }
+    }).catch(function (e) { state.msg = "読み込めませんでした：" + errText(e); state.err = true; })
+      .then(function () { state.loading = false; renderAll(); });
+  }
+
+  /* ---------- 予定（Xの手入力 + 枠が立った配信） ---------- */
+  function prep(s) {
+    var o = Object.assign({}, s);
+    o.cat = o.kind === "event" ? "記念日" : "配信";
+    o.h = o.ch === CH_UNIT ? 10 : 25;
+    o.start = Date.parse(o.date + "T" + (o.time || "00:00") + ":00+09:00");
+    return o;
+  }
+  function toSched(v) {
+    return { id: v.id, kind: "stream", date: dateKey(v.start), time: fmtTime(v.start), ch: v.ch, title: v.title, confirmed: true, vid: v.vid, start: v.start, cat: v.cat, h: v.h };
+  }
+  function sched() {
+    var conf = DATA.live.concat(DATA.upcoming).map(toSched);
+    var man = userSched.filter(function (s) {
+      if (s.kind !== "stream") return true;
+      var st = Date.parse(s.date + "T" + s.time + ":00+09:00");
+      return !conf.some(function (c) { return c.ch === s.ch && Math.abs(c.start - st) <= 2 * 3600e3; });
+    });
+    var base = mode === "sample" ? SAMPLE_SCHED : [];
+    return base.concat(man).map(prep).concat(conf).sort(function (a, b) { return a.start - b.start; });
+  }
+  function persistSched() { lsSet("tsuzuri-sched", userSched); }
+
+  var TABS = [
+    { k: "live", label: "配信中", h1: "いま配信中", sub: "配信中の枠を、すぐ見に行こう。", ico: '<circle cx="12" cy="12" r="2.5"/><path d="M7.5 7.5a6.4 6.4 0 0 0 0 9M16.5 7.5a6.4 6.4 0 0 1 0 9M4.6 4.6a10.5 10.5 0 0 0 0 14.8M19.4 4.6a10.5 10.5 0 0 1 0 14.8"/>' },
+    { k: "upcoming", label: "配信予定", h1: "配信予定", sub: "Xで公表された予定と、枠が立った配信をまとめて見られます。", ico: '<rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M4 10h16M9 3v4M15 3v4"/>' },
+    { k: "archive", label: "アーカイブ", h1: "アーカイブ", sub: "見逃した配信を、あとから。", ico: '<rect x="3.5" y="4" width="17" height="5" rx="1.5"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M10 13h4"/>' },
+    { k: "songs", label: "歌", h1: "歌", sub: "歌ってみたとユニットの楽曲。", ico: '<path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/>' },
+    { k: "saved", label: "あとで見る", h1: "あとで見る", sub: "しおりを付けた動画がここに並びます。", ico: '<path d="M7 4h10a1 1 0 0 1 1 1v15l-6-4-6 4V5a1 1 0 0 1 1-1z"/>' }
+  ];
+
+  var ENVELOPE = '<svg viewBox="0 0 64 48" aria-hidden="true"><rect x="2" y="4" width="60" height="40" rx="5" fill="#fff"/><path d="M4 8l28 22L60 8" fill="none" stroke="#000" stroke-width="3" stroke-linejoin="round"/></svg>';
+  var MARK = '<svg viewBox="0 0 24 24"><path d="M7 4h10a1 1 0 0 1 1 1v15l-6-4-6 4V5a1 1 0 0 1 1-1z"/></svg>';
+  function thumbArt(v) { return v.vid ? '<img src="https://i.ytimg.com/vi/' + esc(v.vid) + '/mqdefault.jpg" alt="" loading="lazy" onerror="this.remove()">' : ENVELOPE; }
+
+  function savedList() { return Object.keys(saved).map(function (k) { return saved[k]; }).sort(function (a, b) { return b.start - a.start; }); }
+  function allItems() { return DATA.live.concat(DATA.upcoming, DATA.archive, DATA.songs, SAMPLE_DATA.live, SAMPLE_DATA.archive, SAMPLE_DATA.songs, savedList()); }
+  function byId(id) { return sched().concat(allItems()).filter(function (v) { return v.id === id; })[0]; }
+  function snap(v) { return { id: v.id, vid: v.vid, title: v.title, cat: v.cat, ch: v.ch, start: v.start, dur: v.dur || "", h: v.h }; }
+
+  function card(v, kind) {
+    var on = !!saved[v.id];
+    var sub = kind === "live" ? agoText(v.start) : kind === "upcoming" ? fmtTime(v.start) + " 開始・" + untilText(v.start) : kind === "songs" ? v.ch : fmtShort(v.start) + "・" + v.ch;
+    var badge = kind === "live" ? '<span class="live-badge">LIVE</span>' : "";
+    var dur = v.dur ? '<span class="dur">' + esc(v.dur) + "</span>" : "";
+    return '<article class="card' + (kind === "live" ? " big-live" : "") + '">' +
+      '<button class="thumb" style="--h:' + v.h + '" data-open="' + esc(v.id) + '" aria-label="' + esc(v.title) + ' の詳細を開く">' + thumbArt(v) +
+      '<span class="tag">' + esc(v.cat) + "</span>" + badge + dur + "</button>" +
+      '<h3 class="title">' + esc(v.title) + "</h3>" +
+      '<div class="meta"><span>' + esc(sub) + '</span><button class="mark" data-save="' + esc(v.id) + '" aria-pressed="' + on + '" aria-label="あとで見る">' + MARK + "</button></div></article>";
+  }
+
+  function match(v) {
+    if (state.q && v.title.toLowerCase().indexOf(state.q.toLowerCase()) < 0) return false;
+    if ((state.tab === "songs" || state.tab === "archive") && state.chip !== "すべて") return v.cat === state.chip || v.ch === state.chip;
+    return true;
+  }
+  function chipList(list, withCh) {
+    var count = {};
+    list.forEach(function (v) { count[v.cat] = (count[v.cat] || 0) + 1; });
+    var cats = Object.keys(count).sort(function (a, b) { return count[b] - count[a]; }).slice(0, 6);
+    var chs = withCh ? [CH_SELF, CH_UNIT].filter(function (c) { return list.some(function (v) { return v.ch === c; }); }) : [];
+    return ["すべて"].concat(chs, cats);
+  }
+
+  function renderTools() {
+    var t = state.tab, html = "", chips = [];
+    if (t === "archive") chips = chipList(DATA.archive, true);
+    if (t === "songs") chips = chipList(DATA.songs, true);
+    if (t === "archive" || t === "songs" || t === "saved") html += '<input class="search" id="q" type="search" placeholder="タイトルで探す" value="' + esc(state.q) + '" aria-label="タイトルで探す">';
+    if (chips.length > 1) html += '<div class="chips">' + chips.map(function (c) { return '<button class="chip" data-chip="' + esc(c) + '" aria-pressed="' + (state.chip === c) + '">' + esc(c) + "</button>"; }).join("") + "</div>";
+    if (t === "upcoming") {
+      html += '<div class="legend"><span><span class="pill on">枠あり</span> 配信枠が立っていて、自動で取得</span><span><span class="pill">予定</span> Xの日程から手入力</span></div>';
+      html += '<button class="btn add" data-add>＋ 予定を追加（日程・記念日）</button>';
+    }
+    document.getElementById("tools").innerHTML = html;
+  }
+
+  function timeline() {
+    var items = sched();
+    var lastKey = dateKey(at(7, 12));
+    items.forEach(function (s) { if (s.date > lastKey) lastKey = s.date; });
+    var todayKey = dateKey(now), out = '<div class="tl">';
+    for (var i = 0; i < 90; i++) {
+      var ts = at(i, 12, 0), key = dateKey(ts);
+      if (key > lastKey) break;
+      var list = items.filter(function (s) { return s.date === key; }).sort(function (a, b) {
+        return (a.kind === "event" ? 0 : 1) - (b.kind === "event" ? 0 : 1) || a.start - b.start;
+      });
+      out += '<div class="tr day"><div class="dcol"><span class="dmd">' + jst(ts, { month: "numeric", day: "numeric" }) + '</span><span class="dw">(' + jst(ts, { weekday: "short" }) + ')</span></div>' +
+        '<div class="nodecol"><span class="dot day"></span></div><div class="ccol">' +
+        (key === todayKey ? '<span class="pill on">今日</span>' : "") +
+        (list.length ? "" : '<span class="none">配信予定なし</span>') + "</div></div>";
+      list.forEach(function (s) {
+        if (s.kind === "event") {
+          out += '<div class="tr entry"><div class="tcol evt-l">記念日</div><div class="nodecol"><span class="dot star"></span></div><div class="ccol">' +
+            '<button class="evt" data-open="' + esc(s.id) + '">' + esc(s.title) + (s.note ? "<small>" + esc(s.note) + "</small>" : "") + "</button></div></div>";
+        } else {
+          var thumb = s.confirmed
+            ? '<button class="thumb" style="--h:' + s.h + '" data-open="' + esc(s.id) + '" aria-label="' + esc(s.title) + ' の詳細を開く">' + thumbArt(s) + '<span class="tag">' + chLabel(s.ch) + "</span></button>"
+            : '<button class="thumb ph" data-open="' + esc(s.id) + '" aria-label="' + esc(s.title) + ' の詳細を開く">' + chLabel(s.ch) + "</button>";
+          out += '<div class="tr entry"><div class="tcol">' + timeJa(s) + '</div><div class="nodecol"><span class="dot"></span></div><div class="ccol">' +
+            '<div class="ecard">' + thumb + '<div><h3 class="etitle">' + esc(s.title) + '</h3><div class="ebadges"><span class="pill' + (s.confirmed ? " on" : "") + '">' + (s.confirmed ? "枠あり" : "予定") + "</span><span>" + chLabel(s.ch) + "</span></div></div></div></div></div>";
+        }
+      });
+    }
+    return out + "</div>";
+  }
+
+  function renderFeed() {
+    var t = state.tab, out = "";
+    if (t === "live") {
+      out = DATA.live.length ? '<div class="grid single">' + DATA.live.map(function (v) { return card(v, "live"); }).join("") + "</div>"
+        : '<div class="empty"><b>いまは配信していません</b>次の予定は「配信予定」で確認できます。</div>';
+      var next = (mode === "sample" ? sched().filter(function (s) { return s.kind === "stream" && s.confirmed; }) : DATA.upcoming).filter(function (s) { return s.start > now; }).slice(0, 2);
+      if (next.length) out += '<div class="day-label">この次に届く配信</div><div class="grid">' + next.map(function (v) { return card(v, "upcoming"); }).join("") + "</div>";
+    } else if (t === "upcoming") {
+      out = timeline();
+    } else {
+      var list = t === "saved" ? savedList() : DATA[t];
+      list = list.filter(match);
+      out = list.length ? '<div class="grid">' + list.map(function (v) {
+        return card(v, t === "saved" ? (v.start > now ? "upcoming" : "archive") : t);
+      }).join("") + "</div>"
+        : t === "saved" ? '<div class="empty"><b>まだ何もありません</b>カードの右下のしおりを押すと、ここに入ります。</div>'
+        : state.loading ? '<div class="empty"><b>読み込み中です</b>少し待ってください。</div>'
+        : '<div class="empty"><b>見つかりませんでした</b>検索のことばや絞り込みを変えてみてください。</div>';
+    }
+    document.getElementById("feed").innerHTML = out;
+  }
+
+  function renderTabs() {
+    document.getElementById("tabs").innerHTML = TABS.map(function (x) {
+      var dot = x.k === "live" && DATA.live.length ? '<span class="dot-live"></span>' : "";
+      return '<button class="tab" role="tab" data-tab="' + x.k + '" aria-selected="' + (state.tab === x.k) + '"><svg viewBox="0 0 24 24" aria-hidden="true">' + x.ico + "</svg>" + dot + x.label + "</button>";
+    }).join("");
+  }
+  function renderHead() {
+    var x = TABS.filter(function (t) { return t.k === state.tab; })[0];
+    document.getElementById("h1").textContent = x.h1;
+    document.getElementById("sub").textContent = x.sub;
+    document.getElementById("pm-day").textContent = dateKey(now).slice(5).replace("-", ".");
+  }
+  function renderStatus() {
+    var el = document.getElementById("status");
+    el.textContent = mode === "sample" ? "サンプル表示中です。右の歯車で設定すると、本物の配信が表示されます。" : state.msg;
+    el.className = "status" + (state.err ? " err" : "");
+    document.getElementById("btn-refresh").className = "iconbtn" + (state.loading ? " spin" : "");
+  }
+  function renderAll() { renderHead(); renderStatus(); renderTabs(); renderTools(); renderFeed(); }
+
+  /* ---------- シート ---------- */
+  function closeSheet() { document.getElementById("sheet-root").innerHTML = ""; }
+  function toggleSave(id) {
+    if (saved[id]) delete saved[id]; else { var v = byId(id); if (v) saved[id] = snap(v); }
+    lsSet("tsuzuri-saved2", saved); renderFeed();
+  }
+
+  function openSheet(id) {
+    var v = byId(id); if (!v) return;
+    var isEvent = v.kind === "event", planned = v.kind === "stream" && !v.confirmed;
+    var manual = !!v.manual, on = !!saved[id];
+    var watch = v.vid ? "https://www.youtube.com/watch?v=" + encodeURIComponent(v.vid) : (v.ch === CH_UNIT ? URL_UNIT : URL_SELF);
+    var when = v.date ? jst(v.start, { month: "numeric", day: "numeric", weekday: "short" }) + (v.time ? " " + timeJa(v) : "") : (v.start > now ? fmtShort(v.start) + " " + fmtTime(v.start) : fmtShort(v.start));
+    var top = isEvent ? "" : planned
+      ? '<div class="player">この枠はまだ立っていません。Xの日程から入れた予定です。<br>枠が立つと、サムネイルとタイトルが自動で置き換わります。</div>'
+      : v.vid ? '<div class="player real" id="player"><button class="playbtn" id="play-btn" aria-label="ここで再生" style="background-image:url(https://i.ytimg.com/vi/' + esc(v.vid) + '/hqdefault.jpg)"><span><svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg></span></button></div>'
+      : '<div class="player">サンプルの動画です。本物の配信では、ここで再生できます。</div>';
+    var meta = "<span>" + esc(isEvent ? "記念日" : v.ch) + "</span><span>" + esc(when) + "</span>" + (isEvent ? "" : "<span>" + esc(v.cat) + "</span>");
+    var btns = "";
+    if (isEvent) btns = manual ? '<button class="btn" id="sheet-del">この予定を削除</button>' : "";
+    else if (planned) btns = '<div class="row"><a class="btn primary" href="' + (v.ch === CH_UNIT ? X_UNIT : X_SELF) + '" target="_blank" rel="noopener">Xで日程を見る</a>' +
+      (manual ? '<button class="btn" id="sheet-del">削除</button>' : '<button class="btn" id="sheet-close2">閉じる</button>') + "</div>";
+    else btns = '<div class="row"><a class="btn primary" href="' + watch + '" target="_blank" rel="noopener">YouTubeで開く</a>' +
+      '<button class="btn" id="sheet-save" aria-pressed="' + on + '">' + (on ? "あとで見る済み" : "あとで見る") + "</button></div>";
+    document.getElementById("sheet-root").innerHTML =
+      '<div class="scrim" id="scrim"><div class="sheet" role="dialog" aria-modal="true" aria-label="詳細">' + top +
+      "<h2>" + esc(v.title) + "</h2>" + (isEvent && v.note ? '<div class="meta"><span style="white-space:normal">' + esc(v.note) + "</span></div>" : "") +
+      '<div class="meta">' + meta + "</div>" + btns + '<button class="close" id="sheet-close">閉じる</button></div></div>';
+    document.getElementById("sheet-close").focus();
+    var pb = document.getElementById("play-btn");
+    if (pb) pb.onclick = function () {
+      document.getElementById("player").innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/' + encodeURIComponent(v.vid) + '?autoplay=1&playsinline=1&rel=0" title="動画プレーヤー" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>';
+    };
+    var sv = document.getElementById("sheet-save"); if (sv) sv.onclick = function () { toggleSave(id); closeSheet(); };
+    var dl = document.getElementById("sheet-del"); if (dl) dl.onclick = function () {
+      userSched = userSched.filter(function (s) { return s.id !== id; }); persistSched(); closeSheet(); renderFeed();
+    };
+    var c2 = document.getElementById("sheet-close2"); if (c2) c2.onclick = closeSheet;
+  }
+
+  function openAdd() {
+    var tomorrow = dateKey(now + D);
+    document.getElementById("sheet-root").innerHTML =
+      '<div class="scrim" id="scrim"><form class="sheet" id="addform" novalidate aria-label="予定を追加"><h2>予定を追加</h2>' +
+      '<label class="fl" for="f-kind">種類<select id="f-kind" class="search"><option value="stream">配信の予定（Xの日程）</option><option value="event">記念日・誕生日</option></select></label>' +
+      '<label class="fl" for="f-date">日付<input id="f-date" class="search" type="date" value="' + tomorrow + '"></label>' +
+      '<div id="f-sfields" class="row"><label class="fl" for="f-time">開始時刻<input id="f-time" class="search" type="time" value="20:00"></label>' +
+      '<label class="fl" for="f-ch">チャンネル<select id="f-ch" class="search"><option value="self">つづりch</option><option value="unit">公式ch</option></select></label></div>' +
+      '<label class="fl" for="f-title">タイトル<input id="f-title" class="search" type="text" placeholder="例：【雑談】おやすみ前のよしよしタイム"></label>' +
+      '<p class="err" id="f-err" role="alert" hidden></p>' +
+      '<div class="row"><button type="submit" class="btn primary">追加する</button><button type="button" class="btn" id="sheet-close">キャンセル</button></div></form></div>';
+    document.getElementById("f-kind").onchange = function () { document.getElementById("f-sfields").hidden = this.value === "event"; };
+    document.getElementById("addform").onsubmit = function (e) {
+      e.preventDefault();
+      var kind = document.getElementById("f-kind").value, date = document.getElementById("f-date").value;
+      var time = document.getElementById("f-time").value, title = document.getElementById("f-title").value.trim();
+      var err = document.getElementById("f-err");
+      if (!date || !title || (kind === "stream" && !time)) { err.textContent = "日付とタイトル" + (kind === "stream" ? "と開始時刻" : "") + "を入れてください。"; err.hidden = false; return; }
+      var item = { id: "m" + Date.now(), kind: kind, date: date, title: title, manual: true };
+      if (kind === "stream") { item.time = time; item.ch = document.getElementById("f-ch").value === "unit" ? CH_UNIT : CH_SELF; item.confirmed = false; }
+      userSched.push(item); persistSched(); closeSheet(); renderFeed();
+    };
+    document.getElementById("f-date").focus();
+  }
+
+  function parseId(s) { var m = /UC[0-9A-Za-z_-]{22}/.exec(s || ""); return m ? m[0] : ""; }
+  function openSettings() {
+    document.getElementById("sheet-root").innerHTML =
+      '<div class="scrim" id="scrim"><form class="sheet" id="setform" novalidate aria-label="設定"><h2>Holodexにつなぐ</h2>' +
+      '<p class="help">入力した内容は、このスマホのブラウザの中にだけ保存されます。</p>' +
+      '<label class="fl" for="s-key">APIキー<input id="s-key" class="search" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" value="' + esc(settings.key || "") + '"></label>' +
+      '<label class="fl" for="s-self">つづりちゃんのチャンネルID<input id="s-self" class="search" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="UCから始まる文字列、またはHolodexのチャンネルURL" value="' + esc(settings.selfId || "") + '"></label>' +
+      '<label class="fl" for="s-unit">アソビ★まわり隊!のチャンネルID（なくても動きます）<input id="s-unit" class="search" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="UCから始まる文字列、またはHolodexのチャンネルURL" value="' + esc(settings.unitId || "") + '"></label>' +
+      '<details class="help"><summary>チャンネルIDの探し方</summary><p>Holodex（holodex.net）で「鈴鳴つづり」を検索し、チャンネルのページを開きます。アドレスバーのURL（holodex.net/channel/UC…）を、そのままここに貼り付ければ大丈夫です。</p></details>' +
+      '<p class="err" id="s-err" role="alert" hidden></p>' +
+      '<div class="row"><button type="submit" class="btn primary">保存して読み込む</button><button type="button" class="btn" id="sheet-close">キャンセル</button></div>' +
+      (mode === "live" ? '<button type="button" class="close" id="s-clear">保存した設定を消す</button>' : "") + "</form></div>";
+    document.getElementById("setform").onsubmit = function (e) {
+      e.preventDefault();
+      var key = document.getElementById("s-key").value.trim();
+      var rawS = document.getElementById("s-self").value.trim(), rawU = document.getElementById("s-unit").value.trim();
+      var selfId = parseId(rawS), unitId = parseId(rawU), err = document.getElementById("s-err");
+      var msg = "";
+      if (!key) msg = "APIキーを入れてください。";
+      else if (!rawS && !rawU) msg = "チャンネルIDを1つ以上入れてください。";
+      else if ((rawS && !selfId) || (rawU && !unitId)) msg = "チャンネルIDが読み取れませんでした。UCから始まる24文字の文字列か、Holodexのチャンネルページのアドレスを貼ってください。";
+      if (msg) { err.textContent = msg; err.hidden = false; return; }
+      settings = { key: key, selfId: selfId, unitId: unitId }; lsSet("tsuzuri-settings", settings);
+      mode = "live"; DATA = { live: [], upcoming: [], archive: [], songs: [] };
+      closeSheet(); renderAll(); refresh();
+    };
+    var cl = document.getElementById("s-clear");
+    if (cl) cl.onclick = function () {
+      settings = {}; lsSet("tsuzuri-settings", {}); lsSet("tsuzuri-cache", null);
+      mode = "sample"; DATA = SAMPLE_DATA; closeSheet(); renderAll();
+    };
+    document.getElementById("s-key").focus();
+  }
+
+  document.addEventListener("click", function (e) {
+    var el = e.target.closest("[data-tab],[data-chip],[data-open],[data-save],[data-add],#sheet-close,#scrim,#btn-refresh,#btn-settings");
+    if (!el) return;
+    if (el.dataset.tab) { state.tab = el.dataset.tab; state.q = ""; state.chip = "すべて"; renderAll(); window.scrollTo(0, 0); }
+    else if (el.dataset.chip) { state.chip = el.dataset.chip; renderTools(); renderFeed(); }
+    else if (el.dataset.open) openSheet(el.dataset.open);
+    else if (el.dataset.save) toggleSave(el.dataset.save);
+    else if (el.dataset.add !== undefined) openAdd();
+    else if (el.id === "btn-refresh") { if (mode === "live") refresh(); else openSettings(); }
+    else if (el.id === "btn-settings") openSettings();
+    else if (el.id === "sheet-close" || (el.id === "scrim" && e.target === el)) closeSheet();
+  });
+  document.addEventListener("input", function (e) { if (e.target.id === "q") { state.q = e.target.value; renderFeed(); } });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeSheet(); });
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") { now = Date.now(); renderAll(); if (mode === "live" && !state.loading) refresh(); }
+  });
+
+  if (mode === "live") {
+    var cache = lsGet("tsuzuri-cache", null);
+    if (cache && cache.data) { DATA = cache.data; state.msg = "前回の読み込み " + fmtTime(cache.t) + "（最新の情報を確認中…）"; }
+  }
+  renderAll();
+  refresh();
+  if ("serviceWorker" in navigator) { try { navigator.serviceWorker.register("sw.js").catch(function () {}); } catch (e) {} }
+})();
+</script>
+
+</body>
+</html>
